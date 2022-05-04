@@ -16,7 +16,7 @@ This repository contains the code needed to reproduce [Mother Jones'](https://ww
 
 ## Methodology
 
-#### How we analyzed Georgia voter data
+#### How we analyzed abortion data
 
 Mother Jones acquired data for abortions from the [Centers for Disease Control and Prevention Abortion Surveillance program](https://www.cdc.gov/mmwr/volumes/70/ss/ss7009a1.htm#T1_down) and joined it to an [analysis of state laws](https://reproductiverights.org/maps/what-if-roe-fell/) from the Center for Reproductive Rights and 2020 Decennial Census data. Analysis was done in R using the Tidyverse.
 
