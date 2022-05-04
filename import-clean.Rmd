@@ -1,0 +1,267 @@
+---
+title: "Abortion Analysis"
+output: html_document
+date: '2022-05-04'
+by: Ryan Little
+---
+
+##### Packages and Functions
+
+```{r setup, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(janitor)
+library(tools)
+options(digits=3)
+options(scipen=999)
+'%notin%' <- Negate('%in%')
+
+#does a standard group_by and count() with percentage
+grouper <- function(input_df, group_by_column, new_column_name = "n()"){
+  output_df <- input_df %>%
+    group_by(.data[[group_by_column]]) %>%
+    summarise(temp_count = n()) %>%
+    mutate(percent = temp_count/sum(temp_count)*100) %>%
+    arrange(desc(percent)) %>%
+    rename(!!new_column_name := temp_count)
+  return(output_df)
+}
+
+#group/counts every column in input dataframe
+group_count <- function(input_df, group_column_name='n()', state_filter=NA, start_col = 1){
+  column_names <- colnames(input_df)
+  if(!is.na(state_filter)){
+    input_df <- input_df %>%
+      filter(state == state_filter)
+  }
+  for (column in column_names[start_col:length(column_names)]){
+    output <- grouper(input_df, column, group_column_name)
+    print(output)
+  }
+}
+
+grouper_sum <- function(input_df, group_by_column, sum_column, new_column_name = "n()"){
+  output_df <- input_df %>%
+    group_by(.data[[group_by_column]]) %>%
+    summarise(temp_count = sum(.data[[sum_column]])) %>%
+    mutate(percent = temp_count/sum(temp_count)*100) %>%
+    arrange(desc(percent)) %>%
+    rename(!!new_column_name := temp_count)
+  return(output_df)
+  
+}
+
+```
+
+##### Import Data
+
+```{r, message = FALSE, warning = FALSE}
+
+#data set taken from https://www.cdc.gov/mmwr/volumes/70/ss/ss7009a1.htm#T1_down
+import <- read_csv("data/cdc-reproductive-health-by-state.csv") %>%
+  clean_names() %>%
+  #cleaning random characters out
+  mutate(state_3 = gsub("[^[:alnum:]]", " ", state_3),
+         state_8 = gsub("[^[:alnum:]]", " ", state_8),
+         state_13 = gsub("[^[:alnum:]]", " ", state_13),
+         state_16 = gsub("[^[:alnum:]]", " ", state_16),
+         state_22 = gsub("[^[:alnum:]]", " ", state_22),
+         state_27 = gsub("[^[:alnum:]]", " ", state_27),
+         state_35 = gsub("[^[:alnum:]]", " ", state_35)) %>%
+  select(-state_3, -state_8, -state_13, -state_16, -state_22, -state_27, -state_35) %>%
+  #separating counts and perc
+  separate(perc_obtain_by_out_of_state, c("perc_obtain_by_out_of_state", "perc_obtain_by_out_of_state_perc"), " \\(") %>%
+  separate(white, c("white", "white_perc"), " \\(") %>%
+  separate(black, c("black", "black_perc"), " \\(") %>%
+  separate(other, c("other", "other_perc"), " \\(") %>%
+  separate(hispanic, c("hispanic", "hispanic_perc"), " \\(") %>%
+  separate(married, c("married", "married_perc"), " \\(") %>%
+  separate(unmarried, c("unmarried", "unmarried_perc"), " \\(") %>%
+  separate(prev_births_0, c("prev_births_0", "prev_births_0_perc"), " \\(") %>%
+  separate(prev_births_1, c("prev_births_1", "prev_births_1_perc"), " \\(") %>%
+  separate(prev_births_2, c("prev_births_2", "prev_births_2_perc"), " \\(") %>%
+  separate(prev_births_3, c("prev_births_3", "prev_births_3_perc"), " \\(") %>%
+  separate(prev_births_4_or_more, c("prev_births_4_or_more", "prev_births_4_or_more_perc"), " \\(") %>%
+  separate(prev_abortions_0, c("prev_abortions_0", "prev_abortions_0_perc"), " \\(") %>%
+  separate(prev_abortions_1, c("prev_abortions_1", "prev_abortions_1_perc"), " \\(") %>%
+  separate(prev_abortions_2, c("prev_abortions_2", "prev_abortions_2_perc"), " \\(") %>%
+  separate(prev_abortions_3_or_more, c("prev_abortions_3_or_more", "prev_abortions_3_or_more_perc"), " \\(") %>%
+  separate(weeks_gestation_less_6, c("weeks_gestation_less_6", "weeks_gestation_less_6_perc"), " \\(") %>%
+  separate(weeks_gestation_7_to_9, c("weeks_gestation_7_to_9", "weeks_gestation_7_to_9_perc"), " \\(") %>%
+  separate(weeks_gestation_10_13, c("weeks_gestation_10_13", "weeks_gestation_10_13_perc"), " \\(") %>%
+  separate(weeks_gestation_14_15, c("weeks_gestation_14_15", "weeks_gestation_14_15_perc"), " \\(") %>%
+  separate(weeks_gestation_16_17, c("weeks_gestation_16_17", "weeks_gestation_16_17_perc"), " \\(") %>%
+  separate(weeks_gestation_18_20, c("weeks_gestation_18_20", "weeks_gestation_18_20_perc"), " \\(") %>%
+  separate(weeks_gestation_21_or_more, c("weeks_gestation_21_or_more", "weeks_gestation_21_or_more_perc"), " \\(") %>%
+  separate(surgical_less_than_13_weeks, c("surgical_less_than_13_weeks", "surgical_less_than_13_weeks_perc"), " \\(") %>%
+  separate(surgical_more_than_13_weeks, c("surgical_more_than_13_weeks", "surgical_more_than_13_weeks_perc"), " \\(") %>%
+  separate(surgical_unknown, c("surgical_unknown", "surgical_unknown_perc"), " \\(") %>%
+  separate(medical_less_than_9_weeks, c("medical_less_than_9_weeks", "medical_less_than_9_weeks_perc"), " \\(") %>%
+  separate(medical_more_than_9_weeks, c("medical_more_than_9_weeks", "medical_more_than_9_weeks_perc"), " \\(") %>%
+  separate(medical_unknown, c("medical_unknown", "medical_unknown_perc"), " \\(") %>%
+  separate(intrauterin_instillation, c("intrauterin_instillation", "intrauterin_instillation_perc"), " \\(") %>%
+  separate(hysterectomy_hysterotomy, c("hysterectomy_hysterotomy", "hysterectomy_hysterotomy_perc"), " \\(") %>%
+  #removing ) and making double
+  mutate(perc_obtain_by_out_of_state_perc = as.double(gsub("\\)", "", perc_obtain_by_out_of_state_perc)),
+           white_perc = as.double(gsub("\\)", "", white_perc)),
+           black_perc = as.double(gsub("\\)", "", black_perc)),
+           other_perc = as.double(gsub("\\)", "", other_perc)),
+           hispanic_perc = as.double(gsub("\\)", "", hispanic_perc)),
+           married_perc = as.double(gsub("\\)", "", married_perc)),
+           unmarried_perc = as.double(gsub("\\)", "", unmarried_perc)),
+           prev_births_0_perc = as.double(gsub("\\)", "", prev_births_0_perc)),
+           prev_births_1_perc = as.double(gsub("\\)", "", prev_births_1_perc)),
+           prev_births_2_perc = as.double(gsub("\\)", "", prev_births_2_perc)),
+           prev_births_3_perc = as.double(gsub("\\)", "", prev_births_3_perc)),
+           prev_births_4_or_more_perc = as.double(gsub("\\)", "", prev_births_4_or_more_perc)),
+           prev_abortions_0_perc = as.double(gsub("\\)", "", prev_abortions_0_perc)),
+           prev_abortions_1_perc = as.double(gsub("\\)", "", prev_abortions_1_perc)),
+           prev_abortions_2_perc = as.double(gsub("\\)", "", prev_abortions_2_perc)),
+           prev_abortions_3_or_more_perc = as.double(gsub("\\)", "", prev_abortions_3_or_more_perc)),
+           weeks_gestation_less_6_perc = as.double(gsub("\\)", "", weeks_gestation_less_6_perc)),
+           weeks_gestation_7_to_9_perc = as.double(gsub("\\)", "", weeks_gestation_7_to_9_perc)),
+           weeks_gestation_10_13_perc = as.double(gsub("\\)", "", weeks_gestation_10_13_perc)),
+           weeks_gestation_14_15_perc = as.double(gsub("\\)", "", weeks_gestation_14_15_perc)),
+           weeks_gestation_16_17_perc = as.double(gsub("\\)", "", weeks_gestation_16_17_perc)),
+           weeks_gestation_18_20_perc = as.double(gsub("\\)", "", weeks_gestation_18_20_perc)),
+           weeks_gestation_21_or_more_perc = as.double(gsub("\\)", "", weeks_gestation_21_or_more_perc)),
+           surgical_less_than_13_weeks_perc = as.double(gsub("\\)", "", surgical_less_than_13_weeks_perc)),
+           surgical_more_than_13_weeks_perc = as.double(gsub("\\)", "", surgical_more_than_13_weeks_perc)),
+           surgical_unknown_perc = as.double(gsub("\\)", "", surgical_unknown_perc)),
+           medical_less_than_9_weeks_perc = as.double(gsub("\\)", "", medical_less_than_9_weeks_perc)),
+           medical_more_than_9_weeks_perc = as.double(gsub("\\)", "", medical_more_than_9_weeks_perc)),
+           medical_unknown_perc = as.double(gsub("\\)", "", medical_unknown_perc)),
+           intrauterin_instillation_perc = as.double(gsub("\\)", "", intrauterin_instillation_perc)),
+           hysterectomy_hysterotomy_perc = as.double(gsub("\\)", "", hysterectomy_hysterotomy_perc))
+           ) %>%
+  #making double
+  mutate(perc_obtain_by_out_of_state = as.double(perc_obtain_by_out_of_state),
+         white = as.double(white),
+         black = as.double(black),
+         other = as.double(other),
+         hispanic  = as.double(hispanic),
+         married = as.double(married),
+         unmarried = as.double(unmarried),
+         prev_births_0 = as.double(prev_births_0),
+         prev_births_1 = as.double(prev_births_1),
+         prev_births_2 = as.double(prev_births_2),
+         prev_births_3 = as.double(prev_births_3),
+         prev_births_4_or_more = as.double(prev_births_4_or_more),
+         prev_abortions_0  = as.double(prev_abortions_0),
+         prev_abortions_1  = as.double(prev_abortions_1),
+         prev_abortions_2  = as.double(prev_abortions_2),
+         prev_abortions_3_or_more  = as.double(prev_abortions_3_or_more),
+         weeks_gestation_less_6  = as.double(weeks_gestation_less_6),
+         weeks_gestation_7_to_9  = as.double(weeks_gestation_7_to_9),
+         weeks_gestation_10_13 = as.double(weeks_gestation_10_13),
+         weeks_gestation_14_15 = as.double(weeks_gestation_14_15),
+         weeks_gestation_16_17 = as.double(weeks_gestation_16_17),
+         weeks_gestation_18_20 = as.double(weeks_gestation_18_20),
+         weeks_gestation_21_or_more  = as.double(weeks_gestation_21_or_more),
+         surgical_less_than_13_weeks = as.double(surgical_less_than_13_weeks),
+         surgical_more_than_13_weeks = as.double(surgical_more_than_13_weeks),
+         surgical_unknown  = as.double(surgical_unknown),
+         medical_less_than_9_weeks = as.double(medical_less_than_9_weeks),
+         medical_more_than_9_weeks = as.double(medical_more_than_9_weeks),
+         medical_unknown = as.double(medical_unknown),
+         intrauterin_instillation  = as.double(intrauterin_instillation),
+         hysterectomy_hysterotomy  = as.double(hysterectomy_hysterotomy)) %>%
+  #changing to Title Case for viz
+  mutate(cpr_rating = toTitleCase(cpr_rating))
+
+#data from BigLocalNews/AP partnership
+#importing census
+census <- read_csv("data/01_state_pl94171_standard_compare_2010_2020.csv") %>%
+  clean_names() %>%
+  #selecting variables to analyze
+  select(state_name, x2020_pop, x2020_pop_hisp, x2020_pop_white_non_hisp, x2020_pop_black_non_hisp, x2020_pop_aian_non_hisp, x2020_pop_nhpi_non_hisp, x2020_pop_other_non_hisp, x2020_land_area_sqmi, x2020_gq_inst_correctional, x2020_diversity_index, prop_change_pop, prop_change_pop_hisp, prop_change_pop_white_non_hisp, prop_change_pop_black_non_hisp, prop_change_pop_aian_non_hisp, prop_change_pop_asian_non_hisp, prop_change_pop_nhpi_non_hisp, prop_change_pop_other_non_hisp, prop_change_pop_two_plus_non_hisp)
+
+
+
+#cleaning and joining
+clean <- import %>%
+  #joining census
+  left_join(census, by = c("state_1" = "state_name")) %>%
+  rename(state = state_1) %>%
+  #calc pop in millions for viz
+  mutate(pop_in_millions = x2020_pop/1000000) %>%
+  #add all previous abortions to create one side of boolean
+  mutate(previous_abortion_perc = prev_abortions_1_perc + prev_abortions_2_perc + prev_abortions_3_or_more_perc,
+         previoss_birth_perc = prev_births_1_perc + prev_births_2_perc + prev_births_3_perc + prev_births_4_or_more_perc) %>%
+  #pretty printing some stuff because flourish is a pain
+  mutate(pretty_previous_abortion_perc = case_when(
+          !is.na(previous_abortion_perc) ~ paste0(previous_abortion_perc, "%"),
+          TRUE ~ 'No Data'),
+         pretty_previoss_birth_perc = case_when(
+          !is.na(previous_abortion_perc) ~ paste0(previoss_birth_perc, "%"),
+          TRUE ~ 'No Data'),
+         pretty_married_perc = case_when(
+          !is.na(previous_abortion_perc) ~ paste0(married_perc, "%"),
+          TRUE ~ 'No Data')
+         ) %>%
+  mutate(prisoners_per_100k = x2020_gq_inst_correctional/(x2020_pop/100000))
+
+#writing output for viz
+#write_csv(clean, "output/clean-abortion-data.csv")
+```
+
+# Factcheck
+
+"The generally Southern and central states are home to 158 million Americans."
+
+```{r}
+
+grouper_sum(clean, "cpr_rating", "x2020_pop")
+
+```
+
+
+"The states encompass 47 percent of the United States land mass."
+
+```{r}
+
+grouper_sum(clean, "cpr_rating", "x2020_land_area_sqmi")
+
+```
+
+"A Center for Reproductive Rights analysis of laws state laws found that 25 states and three territories are “hostile” to abortion rights, meaning they could immediately prohibit abortion."
+
+"Three more states plus Puerto Rico and the U.S. Virgin Islands have no existing state protections, making it unclear if legislatures there would enact a ban. Abortion rights are either protected by state law or guarantee expanded access in the 22 other states. "
+  
+```{r}
+
+grouper(clean, "cpr_rating")
+
+```
+
+"These states also imprison people at rates nearly double those found in states that have expanded access to abortion, according to a Mother Jones analysis of 2020 Decennial Census."
+ 
+```{r}
+
+clean %>%
+  group_by(cpr_rating) %>%
+  summarise(prisoners_per_100k = mean(prisoners_per_100k)) %>%
+  arrange(desc(prisoners_per_100k))
+
+```
+
+"Analysis excludes California, New Hampshire and Maryland because those states do not report data to the CDC."
+
+```{r}
+
+clean %>%
+  group_by(state) %>%
+  summarise(abortions = sum(abortions)) %>%
+  filter(is.na(abortions))
+
+```
+  
+"The 25 hostile states already had far fewer abortions per person than other states between 2010 and 2019, according to Centers for Disease Control and Prevention Abortion Surveillance data."
+  
+```{r}
+
+clean %>%
+  group_by(cpr_rating) %>%
+  summarise(abortion_rates = mean(abortion_rate, na.rm=TRUE)) %>%
+  arrange(desc(abortion_rates))
+
+```
